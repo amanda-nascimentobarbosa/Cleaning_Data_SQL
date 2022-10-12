@@ -4,7 +4,7 @@
 This is home value data for the hot Nashville market available on Kaggle <br>
 Link: https://www.kaggle.com/datasets/tmthyjames/nashville-housing-data
 
-### 0. Creating the Database
+### 0. Creating the database
 ```sql
 CREATE DATABASE NashvilleHousing
 USE NashvilleHousing
@@ -85,7 +85,7 @@ WHERE A.PropertyAddress IS NULL
 
 ### 3. Breaking out address into individual columns (Address, City, State)
 
-**3.1. Separating the City from the address** 
+**3.1. Separating the city from the address** 
 
 ```sql
 SELECT
@@ -111,7 +111,7 @@ ADD PropertySplitCity VARCHAR(255)
 UPDATE HousingData
 SET PropertySplitCity = SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) +1, LEN(PropertyAddress))
 ```
-**3.3. Separating Address, City and State from Ower address**
+**3.3. Separating Address, City and State from OwerAddress**
 
 ```sql
 SELECT
@@ -123,7 +123,7 @@ FROM
 ```  
 ![image](https://user-images.githubusercontent.com/100388639/195455702-a5500938-8349-492c-bf81-6024661cbd4e.png)
 
-**3.4. Creating and updating new columns for OwerAddress, City and State**
+**3.4. Creating and updating new columns for OwerAddress: OwnerSplitAddress, City and State**
 
 ```sql
 ALTER TABLE HousingData
@@ -145,7 +145,7 @@ UPDATE HousingData
 SET OwnerSplitState = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1)
 ```
 
-**4. Change Y and N to Yes and No in "Sold as Vacant" field**
+**4. Change Y and N to Yes and No in SoldAsVacant column**
 
 ```sql
 SELECT
