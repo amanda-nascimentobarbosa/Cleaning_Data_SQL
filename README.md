@@ -1,32 +1,23 @@
-### Nashville Housing - Data Cleaning and Exploring in SQL
+## Data Cleaning using SQL
 
-Context
-This is home value data for the hot Nashville market.
+### Dataset
+This is home value data for the hot Nashville market available on Kaggle <br>
+Link: https://www.kaggle.com/datasets/tmthyjames/nashville-housing-data
 
-Content
-There are 56,000+ rows altogether. However, I'm missing home detail data for about half.
-
+### 0. Creating the Database
 ```sql
 CREATE DATABASE NashvilleHousing
 USE NashvilleHousing
 ```
 
--- Cleaning data in SQL Queries
+### 1. Standardize date format with Convert
 
--- Checking the table content
-```sql
-EXEC sp_columns HousingData
-```
+The SaleDate column includes the hour, since it's empty, we don't need it. So I converted to date format.
 
-SELECT * 
-FROM HousingData
-
---1. Standardize date format
 ```sql
 SELECT SaleDate, CONVERT(DATE, SaleDate) 
 FROM HousingData
-```
-```sql
+
 UPDATE HousingData
 SET SaleDate = CONVERT(DATE, SaleDate)
 
@@ -36,7 +27,22 @@ ADD SaleDateConverted DATE
 UPDATE HousingData
 SET SaleDateConverted = CONVERT(DATE, SaleDate)
 ```
--- Populate missing property address data 
+![image](https://user-images.githubusercontent.com/100388639/195446756-f7a343a7-b853-48c4-9581-bdbd855d7ba8.png)
+
+### 2. Populate missing property address data
+
+**2.1. Checking the missing values**
+
+```sql
+SELECT *
+FROM HousingData
+WHERE PropertyAddress IS NULL
+```
+![image](https://user-images.githubusercontent.com/100388639/195454241-adf3d8ff-b068-4d66-bf85-0518a05e682f.png)
+
+**2.2. Identified the duplicated pattern**
+
+Checking one specific ParcelID (025 07 0 031.00), we can see that we have duplicates, where only one of them has a PropertyAddress. So, we can use this PropertyAddress to populate the missing values.
 
 ```sql
 SELECT *
@@ -45,8 +51,10 @@ FROM HousingData
 WHERE ParcelID = '025 07 0 031.00'
 ORDER BY PropertyAddress
 ```
+![image](https://user-images.githubusercontent.com/100388639/195454298-b4ac6137-2fe0-45b5-9abd-9fb3a47f6bda.png)
 
--- Using the self join to check the missing values
+**2.3. Using the self join to check the missing values**
+
 ```sql
 SELECT 
 	A.ParcelID,
@@ -62,7 +70,8 @@ JOIN HousingData B
 WHERE A.PropertyAddress IS NULL
 ```
 
---Populate de missing values
+**2.4. Populate the missing values**
+
 ```sql
 UPDATE A
 SET PropertyAddress = ISNULL(A.PropertyAddress, B.PropertyAddress)
@@ -74,7 +83,10 @@ JOIN HousingData B
 WHERE A.PropertyAddress IS NULL
 ```
 
---Breaking out address into individual columns (Address, City, State)
+### 3. Breaking out address into individual columns (Address, City, State)
+
+**3.1. Separating the City from the address** 
+
 ```sql
 SELECT
 	SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress)-1) AS Address,
@@ -82,6 +94,10 @@ SELECT
 FROM
 	HousingData
  ``` 
+ ![image](https://user-images.githubusercontent.com/100388639/195455461-1fe99be7-b861-4425-8cda-4a39e31b8b72.png)
+ 
+ **3.2. Creating and updating new columns for PropertyAddress and City**
+ 
 ```sql
 ALTER TABLE HousingData
 ADD PropertySplitAddress VARCHAR(255)
@@ -95,6 +111,8 @@ ADD PropertySplitCity VARCHAR(255)
 UPDATE HousingData
 SET PropertySplitCity = SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) +1, LEN(PropertyAddress))
 ```
+**3.3. Separating Address, City and State from Ower address**
+
 ```sql
 SELECT
 PARSENAME(REPLACE(OwnerAddress, ',', '.'), 3) AS Address,
@@ -103,6 +121,10 @@ PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1) AS State
 FROM
 	HousingData
 ```  
+![image](https://user-images.githubusercontent.com/100388639/195455702-a5500938-8349-492c-bf81-6024661cbd4e.png)
+
+**3.4. Creating and updating new columns for OwerAddress, City and State**
+
 ```sql
 ALTER TABLE HousingData
 ADD OwnerSplitAddress VARCHAR(255)
@@ -123,7 +145,8 @@ UPDATE HousingData
 SET OwnerSplitState = PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1)
 ```
 
---Change Y and N to Yes and No in "Sold as Vacant" field
+**4. Change Y and N to Yes and No in "Sold as Vacant" field**
+
 ```sql
 SELECT
 	DISTINCT(SoldAsVacant),
@@ -133,6 +156,8 @@ FROM
 GROUP BY SoldAsVacant
 ORDER BY 2
 ```
+![image](https://user-images.githubusercontent.com/100388639/195455876-b225b71b-634d-4f6f-8952-811ebd208f6a.png)
+
 ```sql
 SELECT
 	SoldAsVacant,
@@ -143,6 +168,9 @@ END
 FROM
 	HousingData
 ```  
+
+**4.1. Updating the SoldAsVacant column**
+
 ```sql
 UPDATE HousingData
 SET SoldAsVacant = CASE WHEN SoldAsVacant = 'Y' THEN 'Yes'
@@ -150,7 +178,12 @@ SET SoldAsVacant = CASE WHEN SoldAsVacant = 'Y' THEN 'Yes'
 				        ELSE SoldAsVacant
                    END
 ```
---Remove duplicates
+### 5. Remove duplicates
+
+**5.1. Identify duplicates using CTE**
+
+Creating the CTE to return the row_number that shows the number of times a row with the same data appears in the dataset. When we have a duplicate row we see the number 2 on this column.
+
 ```sql
 WITH RowNumCTE AS (
 SELECT
@@ -173,7 +206,10 @@ FROM RowNumCTE
 WHERE row_num > 1
 ORDER BY PropertyAddress
 ```
---Delete the duplicates
+![image](https://user-images.githubusercontent.com/100388639/195462865-b1a93637-39fe-4487-9267-4c3f382029cd.png)
+
+**5.2. Delete the duplicates**
+
 ```sql
 WITH RowNumCTE AS (
 SELECT
@@ -196,61 +232,16 @@ FROM RowNumCTE
 WHERE row_num > 1
 --ORDER BY PropertyAddress
 ```
---Delete unused columns
+
+**5.3. Delete unused columns**
+
+Usually we do not delete columns from the database, however for this cleaning practice I decided to delete the columns PropertyAddress, SaleDate, OwnerAddress because we alreary have those information in separate columns.
+
 ```sql
 ALTER TABLE HousingData
 DROP COLUMN PropertyAddress, SaleDate, OwnerAddress
 ```
-### Exploring the dataset
+### Credits
 
-```sql
-SELECT * FROM HousingData WHERE OwnerSplitAddress IS NULL
---OWNERNAME = 31158
---ACREAGE, TAXDISTRICT, LANDVALUE, BUILDINGVALUE, TOTAL VALUE, OWNERSPLITADDRESS, CITY, STATE = 30404
---YEARBUILT = 32255
---BEDROONS = 32261
---FULLBATH = 32143
---HALFBATH = 32274
-```
-
---How many land use we have
-```sql
-SELECT
-	DISTINCT(LandUse)
-FROM
-	HousingData
- ```
-
---Total and percentage of properties by land use
-```sql
-SELECT
-	DISTINCT(LandUse),
-	COUNT(LandUse) AS Total,
-	CAST((COUNT(LandUse)/Tmp.Total)*100 AS numeric(10,2)) AS Percentage
-FROM
-	HousingData,
-	(SELECT CAST(COUNT(LandUse) AS numeric(10,2)) AS TOTAL FROM HousingData) Tmp
-GROUP BY LandUse, Tmp.Total
-ORDER BY Percentage DESC
-```
---Highest Sale price by land use
-```sql
-SELECT
-	LandUse,
-	MAX(SalePrice) AS MaxPrice
-FROM
-	HousingData
-GROUP BY LandUse
-ORDER BY MaxPrice DESC
-```
---Porperties by cities
-```sql
-SELECT
-	DISTINCT(PropertySplitCity),
-	COUNT(PropertySplitCity) AS Total
-FROM
-	HousingData
-GROUP BY PropertySplitCity
-ORDER BY Total DESC
-```
---How many were sold as vacant
+ Alex Freberg - Data Analyst Portfolio Project | Data Cleaning in SQL | Project 3/4 <br>
+ Link: https://www.youtube.com/watch?v=8rO7ztF4NtU&list=PLUaB-1hjhk8H48Pj32z4GZgGWyylqv85f&index=3
